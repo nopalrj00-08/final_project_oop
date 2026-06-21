@@ -1,1 +1,1 @@
-from abc import ABC, abstractmethodclass ActionTrigger(ABC):    """blueprint for the computer whenever I want to trigger an action"""    @abstractmethod    def execute(self):        pass
+from abc import ABC, abstractmethodimport pyautoguiclass ActionTrigger(ABC):    """blueprint for the computer whenever I want to trigger an action"""    @abstractmethod    def execute(self):        passclass ScrollableActionTrigger(ActionTrigger):    def execute(self):        pyautogui.scroll(-200)        print("\033[1;31m RED IS DETECTED: SCROLLING DOWN")
