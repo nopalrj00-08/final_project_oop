@@ -1,1 +1,1 @@
-rGEFG
+from abc import ABC, abstractmethodclass ActionTrigger(ABC):    """blueprint for the computer whenever I want to trigger an action"""    @abstractmethod    def execute(self):        pass
