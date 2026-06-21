@@ -1,0 +1,86 @@
+from abc import ABC, abstractmethod
+import cv2
+import numpy as np
+import pyautogui
+class ActionTrigger(ABC):
+    """blueprint for the computer whenever I want to trigger an action"""
+    @abstractmethod
+    def execute(self):
+        pass
+class ScrollableActionTrigger(ActionTrigger):
+    """Concrete implementation that triggers a scroll-down action."""
+    def execute(self):
+        pyautogui.scroll(-200)
+        print("\033[1;31m RED IS DETECTED: SCROLLING DOWN\033[0m")
+class VisionController(ABC):
+    @abstractmethod
+    def process_frame(self,frame):
+        pass
+class RedObjectController(VisionController):
+    """Controller responsible for tracking red objects and triggering actions."""
+    def __init__ ( self,action_trigger: ActionTrigger, camera_index=0):
+        #Encapsulation
+        self.__cap = cv2.VideoCapture(camera_index, cv2.CAP_DSHOW)
+        self.__action_trigger = action_trigger
+        self._prev_y = 0
+        self.__red_lower1 = np.array([0,120,70])
+        self.__red_upper1 = np.array([10,255,255])
+        self.__red_lower2 = np.array([170,120,70])
+        self.__red_upper2 = np.array([180,255,255])
+    @property
+    def is_camera_ready(self):
+        """Checks if the video capture device is successfully opened."""
+        return self.__cap.isOpened()
+    def process_frame(self, frame):
+        """Applies image processing pipeline to detect red color blobs."""
+        blurred = cv2.GaussianBlur(frame, (11,11), 0)
+        hsv = cv2.cvtColor(blurred, cv2.COLOR_BGR2HSV)
+        # Create masks for red range and combine them
+        mask1 = cv2.inRange(hsv, self.__red_lower1, self.__red_upper1)
+        mask2 = cv2.inRange(hsv, self.__red_lower2, self.__red_upper2)
+        mask = cv2.bitwise_or(mask1, mask2)
+        # Clean up mask noise using morphological operations
+        mask =cv2.erode(mask, None, iterations=2)
+        mask =cv2.dilate(mask, None, iterations=2)
+        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        self._track_movement(contours, frame)
+    def _track_movement(self, contours, frame):
+        """Identifies large contours and checks for downward motion."""
+        for shape_rect in contours:
+            if cv2.contourArea(shape_rect) > 500:
+                x_axis, y_axis, width, height = cv2.boundingRect(shape_rect)
+                cv2.rectangle(frame, (x_axis, y_axis), (x_axis + width, y_axis + height), (0, 255, 0), 2)
+                # Check if there is active downward movement compared to the last frame
+                if y_axis > self._prev_y + 10:
+                    self.__action_trigger.execute()
+                # Always update the tracking history to the current frame's position
+                self._prev_y = y_axis
+                return
+    def start_stream(self):
+        """Main loop to capture camera input and run processing."""
+        if not self.is_camera_ready:
+            return
+        try:
+            while self.is_camera_ready:
+                ret, frame = self.__cap.read()
+                if not ret:
+                    break
+                frame = cv2.flip(frame, 1)
+                self.process_frame(frame)
+                cv2.imshow('Red Object Scroll Down Tracker', frame)
+                if cv2.waitKey(10) == ord('q'):
+                    break
+        except Exception:
+            pass
+        finally:
+            self.__cap.release()
+            cv2.destroyAllWindows()
+if __name__ == "__main__":
+    selected_action = ScrollableActionTrigger()
+    bot = RedObjectController(action_trigger = selected_action, camera_index=0)
+    bot.start_stream()
+
+
+
+
+
